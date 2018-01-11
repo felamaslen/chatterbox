@@ -14,7 +14,7 @@ export default function run() {
     const app = express();
     const srv = http.createServer(app);
 
-    app.use('/api', routes(app, srv));
+    app.use('/api/v1', routes(app, srv));
 
     app.set('view engine', 'ejs');
     app.set('views', path.join(__dirname, '../src/templates'));
