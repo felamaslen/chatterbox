@@ -9,8 +9,7 @@ import rootReducer from '../reducers';
 
 const sagaMiddleware = createSagaMiddleware();
 
-const SKIP_LOG_ACTIONS = [
-];
+const SKIP_LOG_ACTIONS = (process.env.SKIP_LOG_ACTIONS || '').split('');
 
 const logger = createLogger({
     collapsed: true,
