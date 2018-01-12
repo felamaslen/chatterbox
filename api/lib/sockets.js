@@ -1,127 +1,124 @@
+import { Server as WebSocketServer, OPEN } from 'ws';
 import logger from '../helpers/logger';
-import { OPEN, Server as WebSocketServer } from 'ws';
-import ShortUniqueId from 'short-unique-id';
-import joi from 'joi';
-import getDispatcher from './dispatcher';
+import {
+    socketCommandsExecuted, clientConnected, clientDisconnected, messageReceived
+} from './actions';
+import { SOCKET_COMMANDS_EXECUTED } from './constants/actions';
+import { getRemoteIp, getNewConnectionId } from '../helpers/ip';
 
-import * as A from './actions';
+export const SEND = 'SEND';
 
-const uid = new ShortUniqueId();
+function socketInstructionHandler(socket, connectionId, instructions) {
+    instructions.forEach(instruction => {
+        const type = instruction.get('type');
 
-function validateMessage(req) {
-    const schema = joi.object().keys({
-        text: joi.string().required(),
-        timeSent: joi.number().integer()
-            .required(),
-        timeReceived: joi.number().integer()
-            .required()
-    });
+        if (type === SEND && socket.readyState === OPEN) {
+            const data = JSON.stringify(instruction.get('data'));
 
-    const { error, value } = joi.validate(req, schema);
+            logger.verbose('SOCKET::SEND', connectionId, data);
 
-    if (error) {
-        throw error;
-    }
-
-    return value;
-}
-
-function onMessage(dispatcher) {
-    return connectionId => res => {
-        try {
-            const { text, timeSent } = JSON.parse(res);
-
-            const timeReceived = Date.now();
-
-            const req = { text, timeSent, timeReceived };
-
-            let message = null;
-            try {
-                message = validateMessage(req);
-            }
-            catch (err) {
-                logger.warn('Invalid message from client:', err.message);
-
-                return;
-            }
-
-            dispatcher.dispatch({
-                type: A.MESSAGE_RECEIVED,
-                connectionId,
-                ...message
-            });
-        }
-        catch (genericErr) {
-            logger.error('Error parsing message from client:', genericErr);
-        }
-    };
-}
-
-function onClose(dispatcher) {
-    return connectionId => () => dispatcher.dispatch({
-        type: A.CLIENT_DISCONNECTED,
-        connectionId
-    });
-}
-
-const getNewConnectionId = origin => `${origin}-${uid.randomUUID(6)}`;
-
-function getRemoteIp(req) {
-    return req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-}
-
-function onConnection(dispatcher, state) {
-    return (socket, req) => {
-        const ip = getRemoteIp(req);
-
-        const origin = ip;
-
-        const connectionId = getNewConnectionId(origin);
-
-        socket.on('message', onMessage(dispatcher, state)(connectionId));
-
-        socket.on('close', onClose(dispatcher, state)(connectionId));
-
-        logger.info('New connection from', origin);
-
-        dispatcher.dispatch({
-            type: A.CLIENT_CONNECTED,
-            connectionId,
-            origin
-        });
-    };
-}
-
-function broadcast(socketServer, data) {
-    socketServer.clients.forEach(client => {
-        if (client.readyState === OPEN) {
-            client.send(data);
+            socket.send(data);
         }
     });
 }
 
-function onDispatch(socketServer) {
-    return state => {
-        const data = JSON.stringify(state.toJS());
-
-        logger.info('dispatching state update:', data);
-
-        broadcast(socketServer, data);
-    };
-}
-
-export default function setupWebSockets(app, server) {
+export default function createWebSocketServerMiddleware(server) {
     const secure = (process.env.WEB_URI || '').indexOf('https://') === 0;
 
-    const socketServer = new WebSocketServer({
+    const wsServer = new WebSocketServer({
         server,
         path: '/socket',
         secure,
         autoAcceptConnections: false
     });
 
-    const { dispatcher, state } = getDispatcher(onDispatch(socketServer));
+    const sockets = {};
 
-    socketServer.on('connection', onConnection(dispatcher, state));
+    return ({ dispatch, getState }) => {
+        wsServer.on('connection', (socket, req) => {
+            const ip = getRemoteIp(req);
+            const connectionId = getNewConnectionId(ip);
+
+            const origin = ip; // could do DNS reverse lookup here
+
+            sockets[connectionId] = socket;
+
+            logger.info('New connection from', connectionId);
+
+            const opened = socket.readyState === OPEN;
+            if (opened) {
+                logger.debug('Socket already open for', connectionId);
+
+                dispatch(clientConnected({ connectionId, origin }));
+            }
+            else {
+                socket.on('open', () => {
+                    logger.debug('Socket opened for', connectionId);
+
+                    dispatch(clientConnected({ connectionId, origin }));
+                });
+            }
+
+            socket.on('message', res => {
+                logger.verbose('Received message from', connectionId);
+
+                dispatch(messageReceived(connectionId, Date.now(), res));
+            });
+
+            socket.on('close', () => {
+                logger.info('Connection closed for', connectionId);
+
+                Reflect.deleteProperty(sockets, connectionId);
+
+                dispatch(clientDisconnected(connectionId));
+            });
+        });
+
+        return next => action => {
+            const nextAction = next(action);
+
+            if (action.type === SOCKET_COMMANDS_EXECUTED) {
+                return nextAction;
+            }
+
+            const nextState = getState();
+
+            const socketShadowsAfter = nextState.get('socketShadows');
+
+            logger.debug('ALL SOCKET SHADOWS', socketShadowsAfter.toJS());
+
+            logger.debug('FILTERED SOCKET SHADOWS', socketShadowsAfter
+                .filter((socketShadow, connectionId) =>
+                    socketShadow.get('instructions').size && connectionId in sockets
+                )
+                .toJS()
+            );
+
+            socketShadowsAfter
+                .filter((socketShadow, connectionId) =>
+                    socketShadow.get('instructions').size && connectionId in sockets
+                )
+                .forEach((socketShadow, connectionId) => {
+                    socketInstructionHandler(
+                        sockets[connectionId], connectionId, socketShadow.get('instructions')
+                    );
+                });
+
+            const broadcast = nextState.get('broadcast');
+
+            logger.debug('BROADCAST', broadcast.toJS());
+
+            if (broadcast.size) {
+                Object.keys(sockets)
+                    .forEach(socketConnectionId => socketInstructionHandler(
+                        sockets[socketConnectionId], socketConnectionId, broadcast
+                    ));
+            }
+
+            setTimeout(() => dispatch(socketCommandsExecuted()), 0);
+
+            return nextAction;
+        };
+    };
 }
 

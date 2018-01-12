@@ -1,17 +1,47 @@
-import * as A from './actions';
-import * as R from './reducers';
+import { applyMiddleware, createStore } from 'redux';
+import createSagaMiddleware from 'redux-saga';
+import createWebSocketServerMiddleware from './sockets';
+import logger from '../helpers/logger';
 
-const reducers = {
-    [A.CLIENT_CONNECTED]: R.onClientConnection,
-    [A.CLIENT_DISCONNECTED]: R.onClientDisconnection,
-    [A.MESSAGE_RECEIVED]: R.onClientMessage
-};
+import initialState from './state';
+import rootReducer from './reducers';
+import rootSaga from './sagas';
 
-export default (state, { type, ...action }) => {
-    if (type in reducers) {
-        return reducers[type](state, action);
+const __DEV__ = process.env.NODE_ENV === 'development';
+
+export default function configureStore(app, srv) {
+    const middleware = [];
+
+    const sagaMiddleware = createSagaMiddleware();
+    middleware.push(sagaMiddleware);
+
+    const webSocketServerMiddleware = createWebSocketServerMiddleware(srv);
+    middleware.push(webSocketServerMiddleware);
+
+    if (__DEV__) {
+        const loggerMiddleware = ({ getState }) => next => action => {
+            const { type, ...payload } = action;
+
+            logger.verbose('[DISPATCHING]', type, payload);
+
+            logger.debug('[STATE BEFORE]', JSON.stringify(getState().toJS()));
+
+            const nextAction = next(action);
+
+            logger.debug('[STATE AFTER]', JSON.stringify(getState().toJS()));
+
+            return nextAction;
+        };
+
+        middleware.push(loggerMiddleware);
     }
 
-    return state;
-};
+    const createStoreWithMiddleware = applyMiddleware(...middleware)(createStore);
+
+    const store = createStoreWithMiddleware(rootReducer, initialState);
+
+    sagaMiddleware.run(rootSaga);
+
+    return store;
+}
 

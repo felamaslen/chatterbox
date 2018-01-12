@@ -1,7 +1,10 @@
 import { fromJS } from 'immutable';
 
-export default () => fromJS({
+export default fromJS({
     clients: {},
+    socketShadows: {},
+    broadcast: [],
+    lastConnectionId: null,
     messages: []
 });
 
