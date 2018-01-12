@@ -5,7 +5,9 @@ import logger from '../../helpers/logger';
 import initialState from '../state';
 import * as actions from '../constants/actions';
 import { SEND } from '../sockets';
-import { NEW_CLIENT, CLIENT_WENT_AWAY, NEW_MESSAGE, MESSAGE_HISTORY } from '../constants/broadcast';
+import {
+    CLIENT_INIT, NEW_CLIENT, CLIENT_WENT_AWAY, NEW_MESSAGE, MESSAGE_HISTORY
+} from '../constants/broadcast';
 
 export function onSocketCommandExecution(state) {
     return state
@@ -15,11 +17,11 @@ export function onSocketCommandExecution(state) {
         .set('broadcast', list.of());
 }
 
-export function onBroadcast(state, { data }) {
+export function onBroadcast(state, { action }) {
     // we are broadcasting a message to all clients
 
     return state.set('broadcast', state.get('broadcast')
-        .push(map({ type: SEND, data }))
+        .push(map({ broadcastType: SEND, action }))
     );
 }
 
@@ -29,13 +31,25 @@ export function onClientConnection(state, { connectionId, origin }) {
         state
             .setIn(['clients', connectionId], map({ origin }))
             .setIn(['socketShadows', connectionId], map({
-                instructions: list.of(map({
-                    type: MESSAGE_HISTORY,
-                    data: state.get('messages').toJS()
-                }))
+                instructions: list.of(
+                    map({
+                        broadcastType: SEND,
+                        action: {
+                            type: CLIENT_INIT,
+                            connectionId
+                        }
+                    }),
+                    map({
+                        broadcastType: SEND,
+                        action: {
+                            type: MESSAGE_HISTORY,
+                            messages: state.get('messages').toJS()
+                        }
+                    })
+                )
             })),
         {
-            data: {
+            action: {
                 type: NEW_CLIENT,
                 connectionId,
                 origin
@@ -52,7 +66,7 @@ export function onClientDisconnection(state, { connectionId }) {
             .deleteIn(['clients', connectionId])
             .deleteIn(['socketShadows', connectionId]),
         {
-            data: {
+            action: {
                 type: CLIENT_WENT_AWAY,
                 connectionId
             }
@@ -108,7 +122,7 @@ export function onClientMessage(state, { connectionId, time: timeReceived, res }
         return onBroadcast(
             state.set('messages', state.get('messages').push(messageWithId)),
             {
-                data: {
+                action: {
                     type: NEW_MESSAGE,
                     connectionId,
                     text: message.text

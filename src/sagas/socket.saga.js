@@ -24,20 +24,20 @@ export function initWebSocket() {
 
         socket.addEventListener('error', err => emitter(S.socketErrorOccurred(err)));
 
-        socket.addEventListener('message', data => emitter(S.socketRemoteStateUpdated(data)));
+        socket.addEventListener('message', event => emitter(S.socketRemoteStateUpdated(event.data)));
 
         return () => emitter(S.socketCreated(null));
     });
 }
 
-export function *notifySocketOfLocalUpdate({ req }) {
+export function *notifySocketOfLocalUpdate({ type, data }) {
     const socket = yield select(selectSocket);
 
     if (!socket) {
         return;
     }
 
-    yield call(socket.send, req);
+    yield call(socket.send, JSON.stringify({ type, data }));
 }
 
 export function *socketChannelListener() {

@@ -10,14 +10,14 @@ export const SEND = 'SEND';
 
 function socketInstructionHandler(socket, connectionId, instructions) {
     instructions.forEach(instruction => {
-        const type = instruction.get('type');
+        const broadcastType = instruction.get('broadcastType');
 
-        if (type === SEND && socket.readyState === OPEN) {
-            const data = JSON.stringify(instruction.get('data'));
+        if (broadcastType === SEND && socket.readyState === OPEN) {
+            const action = JSON.stringify(instruction.get('action'));
 
-            logger.verbose('SOCKET::SEND', connectionId, data);
+            logger.verbose('SOCKET::SEND', connectionId, action);
 
-            socket.send(data);
+            socket.send(action);
         }
     });
 }
