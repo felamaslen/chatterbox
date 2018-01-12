@@ -125,7 +125,7 @@ export function onClientMessage(state, { connectionId, time: timeReceived, res }
                 action: {
                     type: NEW_MESSAGE,
                     connectionId,
-                    text: message.text
+                    ...message
                 }
             }
         );
