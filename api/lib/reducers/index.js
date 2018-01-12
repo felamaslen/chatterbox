@@ -74,7 +74,7 @@ export function onClientDisconnection(state, { connectionId }) {
     );
 }
 
-export function validateMessage(req) {
+export function validateMessage(payload) {
     const schema = joi.object().keys({
         text: joi.string().required(),
         timeSent: joi.number().integer()
@@ -83,13 +83,38 @@ export function validateMessage(req) {
             .required()
     });
 
-    const { error, value } = joi.validate(req, schema);
+    const { error, value } = joi.validate(payload, schema);
 
     if (error) {
         throw error;
     }
 
     return value;
+}
+
+export function onClientMessageSent(state, { connectionId, ...payload }) {
+    let message = null;
+    try {
+        message = validateMessage(payload);
+    }
+    catch (validationErr) {
+        logger.warn('Invalid message from client:', validationErr.message);
+
+        return state;
+    }
+
+    const messageWithId = map({ connectionId, ...message });
+
+    return onBroadcast(
+        state.set('messages', state.get('messages').push(messageWithId)),
+        {
+            action: {
+                type: NEW_MESSAGE,
+                connectionId,
+                ...message
+            }
+        }
+    );
 }
 
 export function onClientMessage(state, { connectionId, time: timeReceived, res }) {
@@ -103,38 +128,21 @@ export function onClientMessage(state, { connectionId, time: timeReceived, res }
     }
 
     try {
-        const { text, timeSent } = JSON.parse(res);
+        const { type, ...payload } = JSON.parse(res);
 
-        const req = { text, timeSent, timeReceived };
+        const action = { connectionId, timeReceived, ...payload };
 
-        let message = null;
-        try {
-            message = validateMessage(req);
-        }
-        catch (validationErr) {
-            logger.warn('Invalid message from client:', validationErr.message);
-
-            return state;
+        if (type === NEW_MESSAGE) {
+            return onClientMessageSent(state, action);
         }
 
-        const messageWithId = map({ connectionId, ...message });
-
-        return onBroadcast(
-            state.set('messages', state.get('messages').push(messageWithId)),
-            {
-                action: {
-                    type: NEW_MESSAGE,
-                    connectionId,
-                    ...message
-                }
-            }
-        );
+        logger.warn('Received unknown instruction from client:', connectionId, type);
     }
     catch (parseErr) {
         logger.error('Error parsing message from client:', parseErr.stack);
-
-        return state;
     }
+
+    return state;
 }
 
 const createReducerObject = array => array.reduce((obj, [action, handler]) => ({

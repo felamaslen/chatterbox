@@ -13,7 +13,7 @@ export function addPendingMessage(state, { text }) {
     );
 }
 
-export function onUpdateFromLocal(state, { type, ...data }) {
+export function onUpdateFromLocal(state, { broadcastType, payload }) {
     // Add data to the local ("pending") part of the state
     // Saga middleware will trigger the call to update the server
     // Once that's done, another action will be fired which triggers the
@@ -22,8 +22,8 @@ export function onUpdateFromLocal(state, { type, ...data }) {
     // The objects passed into this reducer correspond to the objects
     // sent across the socket
 
-    if (type === broadcast.NEW_MESSAGE) {
-        return addPendingMessage(state, data);
+    if (broadcastType === broadcast.NEW_MESSAGE) {
+        return addPendingMessage(state, payload);
     }
 
     return state;

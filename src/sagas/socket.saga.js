@@ -15,13 +15,6 @@ export function initWebSocket() {
 
         setTimeout(() => emitter(S.socketCreated(socket)), 0);
 
-        socket.addEventListener('open', () => {
-            socket.send(JSON.stringify({
-                text: 'Hello!',
-                timeSent: Date.now()
-            }));
-        });
-
         socket.addEventListener('error', err => emitter(S.socketErrorOccurred(err)));
 
         socket.addEventListener('message', event => emitter(S.socketRemoteStateUpdated(event.data)));
@@ -30,14 +23,14 @@ export function initWebSocket() {
     });
 }
 
-export function *notifySocketOfLocalUpdate({ type, data }) {
+export function *notifySocketOfLocalUpdate({ broadcastType: type, payload }) {
     const socket = yield select(selectSocket);
 
     if (!socket) {
         return;
     }
 
-    yield call(socket.send, JSON.stringify({ type, data }));
+    yield call([socket, 'send'], JSON.stringify({ type, ...payload }));
 }
 
 export function *socketChannelListener() {
