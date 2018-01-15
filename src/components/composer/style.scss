@@ -1,0 +1,30 @@
+.composer-outer {
+    display: flex;
+    flex: 0 0 48px;
+    flex-flow: row;
+    align-items: center;
+    border-top: 1px solid $color-primary;
+
+    .composer-input {
+        padding: 0 4px;
+        flex: 1 0 0;
+        height: 100%;
+        outline: none;
+        border: none;
+        font-size: 18px;
+    }
+    .composer-submit {
+        flex: 0 0 64px;
+        border: none;
+        outline: none;
+        background: $color-primary;
+        height: 100%;
+        font-weight: bold;
+        cursor: pointer;
+
+        &:active {
+            background: $color-accent;
+        }
+    }
+}
+

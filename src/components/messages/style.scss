@@ -1,0 +1,33 @@
+.messages-outer {
+    display: flex;
+    flex: 1 0 0;
+
+    .messages-list {
+        display: flex;
+        margin: 0;
+        padding: 0;
+        flex-flow: column;
+        width: 100%;
+        height: 100%;
+
+        .message-outer {
+            display: flex;
+            padding: 0.3em 1em;
+            flex-flow: column;
+            height: 48px;
+
+            .origin {
+                color: $color-grey-medium-5;
+                font-size: 10px;
+            }
+            .text {
+            }
+            .time-sent {
+                font-size: 9px;
+                width: 100%;
+                text-align: right;
+            }
+        }
+    }
+}
+
