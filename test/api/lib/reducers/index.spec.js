@@ -185,5 +185,56 @@ describe('API reducers', () => {
             ]);
         });
     });
+
+    describe('onClientMessage', () => {
+        const state = fromJS({
+            clients: {
+                foo: {
+                    origin: 'bar'
+                }
+            }
+        });
+
+        it('(for type: NEW_MESSAGE) should return onClientMessageSent(state) with an action', () => {
+            const connectionId = 'foo';
+
+            const time = 10;
+
+            const res = JSON.stringify({
+                type: CB.NEW_MESSAGE,
+                bar: 'baz'
+            });
+
+            const result = R.onClientMessage(state, { connectionId, time, res });
+
+            expect(result).to.deep.equal(R.onClientMessageSent(state, {
+                connectionId,
+                timeReceived: 10,
+                bar: 'baz'
+            }));
+        });
+
+        it('should not do anything if the client doesn\'t exist', () => {
+            expect(R.onClientMessage(state, { connectionId: 'noexist', time: 10, res: '{}' }))
+                .to.deep.equal(state);
+        });
+
+        it('should not do anything if the client JSON request is invalid', () => {
+            expect(R.onClientMessage(state, { connectionId: 'foo', time: 10, res: 'invalid-json' }))
+                .to.deep.equal(state);
+        });
+
+        it('should not do anything if the broadcast type is unrecognised', () => {
+            expect(R.onClientMessage(state, {
+                connectionId: 'foo',
+                time: 10,
+                res: JSON.stringify({
+                    type: 'unknown_type',
+                    bar: 'baz'
+                })
+            }))
+                .to.deep.equal(state);
+        });
+    });
 });
 

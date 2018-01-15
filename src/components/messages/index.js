@@ -2,7 +2,7 @@ import { Map as map, List as list } from 'immutable';
 import React from 'react';
 import PropTypes from 'prop-types';
 
-function Message({ message }) {
+export function Message({ message }) {
     return (
         <li className="message-outer">
             <span className="origin">{message.get('connectionId')}</span>

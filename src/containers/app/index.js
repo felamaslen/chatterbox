@@ -26,9 +26,9 @@ const mapStateToProps = state => ({
 });
 
 const mapDispatchToProps = dispatch => ({
-    onSend: text => dispatch(socketLocalStateUpdated(NEW_MESSAGE, {
+    onSend: (text, now = Date.now()) => dispatch(socketLocalStateUpdated(NEW_MESSAGE, {
         text,
-        timeSent: Date.now()
+        timeSent: now
     }))
 });
 
